@@ -1,115 +1,288 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(Container());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+enum QuestionType {multipleChoice, essay, trueOrFalse}
 
-  // This widget is the root of your application.
+typedef SurveyItemOnSelected = void Function(String);
+typedef SurveyFormSubmit = void Function(Map<String, String>);
+
+class SurveyItemModel {
+  final String id;
+  final String question;
+  final List<String>? options;
+  final QuestionType type;
+
+  const SurveyItemModel({
+    required this.id,
+    required this.question,
+    required this.options,
+    this.type = QuestionType.multipleChoice
+  });
+}
+
+class SurveyListForm extends StatefulWidget {
+
+  const SurveyListForm({
+    Key? key,
+    required this.items,
+    this.titleVisible = true,
+    this.indexVisible = true,
+    this.questionStyle,
+    this.selectedOptionStyle,
+    this.selectedOptionColor,
+    this.unselectedOptionStyle,
+    this.unselectedColor,
+    this.onSubmit
+  }) : super(key: key);
+
+  final List<SurveyItemModel> items;
+  final bool titleVisible;
+  final bool indexVisible;
+  final TextStyle? questionStyle;
+  final TextStyle? selectedOptionStyle;
+  final Color? selectedOptionColor;
+  final TextStyle? unselectedOptionStyle;
+  final Color? unselectedColor;
+  final SurveyFormSubmit? onSubmit;
+
+  @override
+  State<SurveyListForm> createState() => _SurveyListFormState();
+}
+
+class _SurveyListFormState extends State<SurveyListForm> {
+
+  final EdgeInsets horizontalPadding = const EdgeInsets.symmetric(horizontal: 22);
+  final EdgeInsets titlePadding = const EdgeInsets.symmetric(horizontal: 22, vertical: 20);
+
+  List<SurveyItemController> controllers = <SurveyItemController>[];
+  List<StreamSubscription<Map<String, String?>>> streams = <StreamSubscription<Map<String, String?>>>[];
+  Map<String, String?> userAnswers = <String, String?>{};
+
+  @override
+  void initState() {
+    super.initState();
+    userAnswers = { for (var e in widget.items.map((e) => e.id).toList()) e : null };
+  }
+
+  @override
+  void dispose() {
+    streams.map((e) => e.cancel()).toList();
+    controllers.map((e) => e.close()).toList();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // Try running your application with "flutter run". You'll see the
-        // application has a blue toolbar. Then, without quitting the app, try
-        // changing the primarySwatch below to Colors.green and then invoke
-        // "hot reload" (press "r" in the console where you ran "flutter run",
-        // or simply save your changes to "hot reload" in a Flutter IDE).
-        // Notice that the counter didn't reset back to zero; the application
-        // is not restarted.
-        primarySwatch: Colors.blue,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+    return CustomForm(
+      items: widget.items.asMap().map((key, value) {
+        final SurveyItemController controller = SurveyItemController(id: value.id);
+        streams.add(controller.stream.listen((event) {
+          userAnswers[event["id"]!] = userAnswers[event["answer"]!];
+        }));
+        controllers.add(controller);
+        return MapEntry(
+          key,
+          SurveyItem(
+            index: key + 1,
+            surveyItemModel: value,
+            controller: controller,
+            horizontalPadding: horizontalPadding,
+            questionStyle: widget.questionStyle,
+          ),
+        );
+      },).values.toList(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({Key? key, required this.title}) : super(key: key);
+class CustomForm extends StatefulWidget {
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
+  const CustomForm({
+    Key? key,
+    required this.items,
+  }) : super(key: key);
 
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  final List<SurveyItem> items;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<CustomForm> createState() => _CustomFormState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _CustomFormState extends State<CustomForm> {
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: widget.items.map((e) {
+        return e;
+      },).toList(),
+    );
+  }
+}
+
+class SurveyItem extends StatefulWidget {
+
+  const SurveyItem ({
+    Key? key,
+    required this.index,
+    required this.surveyItemModel,
+    required this.controller,
+    required this.horizontalPadding,
+    this.questionStyle,
+    this.selectedOptionStyle,
+    this.selectedOptionColor,
+    this.unselectedOptionStyle,
+    this.unselectedColor,
+  }) : super(key: key);
+
+  final int index;
+  final SurveyItemModel surveyItemModel;
+  final SurveyItemController controller;
+  final EdgeInsets horizontalPadding;
+  final TextStyle? questionStyle;
+  final TextStyle? selectedOptionStyle;
+  final Color? selectedOptionColor;
+  final TextStyle? unselectedOptionStyle;
+  final Color? unselectedColor;
+
+  @override
+  State<SurveyItem> createState() => _SurveyItemState();
+}
+
+class _SurveyItemState extends State<SurveyItem> {
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: widget.horizontalPadding,
+      child: Column(
+        children: <Widget>[
+          Align(
+            alignment: Alignment.topLeft,
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  Align(
+                    alignment: Alignment.topLeft,
+                    child: Text(
+                      "${widget.index}. ",
+                      style: widget.questionStyle,
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      widget.surveyItemModel.question,
+                      style: widget.questionStyle,
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10.0,),
+          if (widget.surveyItemModel.type == QuestionType.multipleChoice)
+            SurveyItemOptions(
+              options: widget.surveyItemModel.options!,
+              onSelected: widget.controller.userInput,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class SurveyItemOptions extends StatefulWidget {
+
+  const SurveyItemOptions({
+    Key? key,
+    required this.options,
+    this.onSelected,
+    this.selectedOptionStyle,
+    this.selectedOptionColor,
+    this.unselectedOptionStyle,
+    this.unselectedColor,
+  }) : super(key: key);
+
+  final List<String> options;
+  final SurveyItemOnSelected? onSelected;
+  final TextStyle? selectedOptionStyle;
+  final Color? selectedOptionColor;
+  final TextStyle? unselectedOptionStyle;
+  final Color? unselectedColor;
+
+  @override
+  State<SurveyItemOptions> createState() => _SurveyItemOptionsState();
+}
+
+class _SurveyItemOptionsState extends State<SurveyItemOptions> {
+
+  String? selectedOption;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      primary: false,
+      shrinkWrap: true,
+      itemCount: widget.options.length,
+      itemBuilder: (BuildContext context, int index) {
+        return InkWell(
+          onTap: widget.onSelected != null ? () {
+            widget.onSelected!(widget.options[index]);
+            setState(() {
+              selectedOption = widget.options[index];
+            });
+          } : null,
+          child: Container(
+            width: double.infinity,
+            alignment: Alignment.center,
+            margin: const EdgeInsets.only(bottom: 16.0),
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: selectedOption == widget.options[index]
+                  ? widget.selectedOptionColor!
+                  : widget.unselectedColor!,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selectedOption == widget.options[index]
+                    ? widget.selectedOptionColor!
+                    : widget.unselectedColor!,
+              ),
+            ),
+            child: Text(
+              widget.options[index],
+              style: selectedOption == widget.options[index]
+                  ? widget.selectedOptionStyle
+                  : widget.unselectedOptionStyle,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class SurveyItemController {
+
+  SurveyItemController({required String id}) : _id = id;
+  final StreamController<Map<String, String?>> _controller = StreamController<Map<String, String?>>.broadcast();
+  final String _id;
+
+  Stream<Map<String, String?>> get stream => _controller.stream;
+
+  void userInput (String answer) {
+    _controller.add({
+      "id": _id,
+      "answer": answer,
     });
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Invoke "debug painting" (press "p" in the console, choose the
-          // "Toggle Debug Paint" action from the Flutter Inspector in Android
-          // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-          // to see the wireframe for each widget.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headline4,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
-    );
+  void close () {
+    _controller.close();
   }
 }
+
